@@ -1,0 +1,9 @@
+1)
+En regardant bien le jeu de donnée, on se rend compte qu'il n'y a pas le meme nombre d'images
+dans le dossier image (7390) alors qu'il y a moins dans le fichier list.txt (7349).
+
+Il serait bien d'ajouter les lignes manquantes dans le fichier list. 
+Toute l'info dont on a besoin pour faire ca est accessible uniquement avec le nom des images manquantes.
+
+2)
+Continuer le projet
