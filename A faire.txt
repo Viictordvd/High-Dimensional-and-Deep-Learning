@@ -6,4 +6,7 @@ Il serait bien d'ajouter les lignes manquantes dans le fichier list.
 Toute l'info dont on a besoin pour faire ca est accessible uniquement avec le nom des images manquantes.
 
 2)
-Continuer le projet
+Ajouter du commentaire et de l'analyse sur ce qui a été fait pour bien tout comprendre.
+
+3)
+Faire le fine tuning.
