@@ -4,3 +4,6 @@ HHDL project for the groupe 2 with
       Thomas Ecobichon
       Edgar Neboit
 Projet de zinzin en cours resté branché
+
+Projet 1 : Victor
+Projet 2 : Edgar
