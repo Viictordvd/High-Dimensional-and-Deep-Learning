@@ -1,0 +1,11 @@
+# Ignorer les dossiers de données
+data/
+hymenoptera_data/
+dataset/
+
+# Ignorer les archives et fichiers temporaires
+*.tar.gz
+*.zip
+*.pth
+__pycache__/
+.ipynb_checkpoints/
