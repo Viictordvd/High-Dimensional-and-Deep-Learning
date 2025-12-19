@@ -2,6 +2,8 @@
 
 ---
 
+Ressources : https://github.com/topics/vision-transformer-image-classification. 
+
 ## Objectif principal
 Comparer les performances de deux architectures pour la classification d’images :
 - **Vision Transformers (ViT)** : Modèles basés sur l’attention, inspirés des transformers en NLP.

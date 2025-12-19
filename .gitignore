@@ -1,11 +1,12 @@
 # Ignorer les dossiers de données
-data/
-hymenoptera_data/
-dataset/
-
+Projet-3-ViTvsCNN/vit_cifar100_final_model/
+Projet-3-ViTvsCNN/data_tv/
+Projet-3-ViTvsCNN/hymenoptera_data/
+Projet-3-ViTvsCNN/data/
 # Ignorer les archives et fichiers temporaires
 *.tar.gz
 *.zip
 *.pth
+*.safetensors
 __pycache__/
 .ipynb_checkpoints/
