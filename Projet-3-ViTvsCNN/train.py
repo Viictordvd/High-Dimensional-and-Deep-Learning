@@ -2,11 +2,9 @@ import torch
 import time
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
-
+#fonction entrainant le modèle et retourne l'historique des pertes/précisions.
 def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=10, device='cuda'):
-    """
-    Entraîne le modèle et retourne l'historique des pertes/précisions.
-    """
+
     history = {
         'train_loss': [], 'train_acc': [],
         'val_loss': [], 'val_acc': []
@@ -18,7 +16,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
     start_time = time.time()
 
     for epoch in range(num_epochs):
-        # --- PHASE D'ENTRAÎNEMENT ---
         model.train()
         running_loss = 0.0
         correct = 0
@@ -26,19 +23,15 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         
         for inputs, labels in train_loader:
             inputs, labels = inputs.to(device), labels.to(device)
-            
-            # 1. Zero grad
+
             optimizer.zero_grad()
-            
-            # 2. Forward
+
             outputs = model(inputs)
             loss = criterion(outputs, labels)
-            
-            # 3. Backward & Optimize
+
             loss.backward()
             optimizer.step()
-            
-            # Stats
+
             running_loss += loss.item() * inputs.size(0)
             _, predicted = torch.max(outputs, 1)
             total += labels.size(0)
@@ -47,7 +40,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         epoch_loss = running_loss / total
         epoch_acc = correct / total
         
-        # --- PHASE DE VALIDATION ---
         model.eval()
         val_loss = 0.0
         val_correct = 0

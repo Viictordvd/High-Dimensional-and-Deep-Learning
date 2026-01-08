@@ -6,17 +6,16 @@ import random as rd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-
+#Fonction qui permet de charger un dossier d'image en tensors
 def load_folder_to_tensors(directory, transform):
-    """Charge un dossier ImageFolder entier en mémoire sous forme de tenseurs."""
+    
     if not os.path.exists(directory):
         # Si le dossier n'existe pas, on retourne None ou on lève une erreur
         print(f"Attention : Le dossier {directory} est introuvable.")
         return None, None, None
 
     dataset = datasets.ImageFolder(root=directory, transform=transform)
-    # Astuce : DataLoader avec batch_size=len(dataset) charge tout d'un coup
-    loader = DataLoader(dataset, batch_size=len(dataset), shuffle=False)
+    loader = DataLoader(dataset, batch_size=len(dataset), shuffle=False) #batch_size=len(dataset) pour tout charger d'un coup
     images, labels = next(iter(loader))
     return images, labels, dataset.classes
 
@@ -30,7 +29,7 @@ def format_cifar_tensor(x_data):
     x = torch.tensor(x_data)
     # 2. Permutation : (Batch, H, W, C) -> (Batch, C, H, W)
     x = x.permute(0, 3, 1, 2)
-    # 3. Normalisation float
+    #Normalisation
     x = x.float() / 255.0
     return x
 
@@ -72,7 +71,7 @@ def describe_image_dataset(x_train, y_train, x_test, y_test, class_names=None, c
     print(f"Number of classes: {N_classes}")
     print("--------------------------------")
 
-    # --- Distribution histograms (Seaborn) ---
+    # Distribution histogrammes 
     plt.subplot(1, 2, 2)
     sns.histplot(y_train, stat='proportion', discrete=True, alpha=.8, shrink=.8, label='Train')
     sns.histplot(y_test, stat='proportion', discrete=True, alpha=.5, shrink=.8, label='Test')
@@ -80,21 +79,21 @@ def describe_image_dataset(x_train, y_train, x_test, y_test, class_names=None, c
     plt.legend()
     plt.show()
 
-    # --- Display example images by class ---
+    # Affichage d'image classe par classe
     fig = plt.figure(figsize=(12, 6))
 
     for i in range(N_classes):
         ax = fig.add_subplot(2, (N_classes + 1) // 2 + 1, i + 1)
 
-        # Sélection d'un index aléatoire pour la classe i
+        # index aléatoire pour la classe i
         indices = np.where(y_train == i)[0]
         if len(indices) > 0:
             sample_index = rd.choice(indices)
             
-            # Récupération de l'image (toujours en numpy ici)
+            
             img = x_train_np[sample_index]
 
-            # CORRECTION CRUCIALE : Transposition si Channels First (C, H, W) -> (H, W, C)
+            # Transposition si Channels First (C, H, W) -> (H, W, C)
             if channels_first:
                 img = np.transpose(img, (1, 2, 0))
 

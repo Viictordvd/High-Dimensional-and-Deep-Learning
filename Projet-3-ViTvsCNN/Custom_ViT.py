@@ -4,18 +4,13 @@ import torch.nn as nn
 #Embeddings pour le ViT
 class PatchEmbedding(nn.Module):
 
-    def __init__(self, img_size=224, patch_size=16, in_channels=3, embed_dim=768):
+    def __init__(self, img_size=32, patch_size=4, in_channels=3, embed_dim=128):
         super().__init__()
         self.img_size = img_size
         self.patch_size = patch_size
         self.n_patches = (img_size // patch_size) ** 2
-
-        self.proj = nn.Conv2d(
-            in_channels,
-            embed_dim,
-            kernel_size=patch_size,
-            stride=patch_size
-        )
+        # On utilise une Conv2d avec kernel_size = stride = patch_size pour découper et projeter linéairement.
+        self.proj = nn.Conv2d(in_channels,embed_dim,kernel_size=patch_size,stride=patch_size)
     def forward(self, x):
         # x: (B, C, H, W)
         x = self.proj(x)  
@@ -24,7 +19,7 @@ class PatchEmbedding(nn.Module):
         return x
 
 class MLP(nn.Module):
-    def __init__(self, embed_dim=768, mlp_ratio=4.0, dropout=0.1):
+    def __init__(self, embed_dim, mlp_ratio, dropout=0.1):
         super().__init__()
         hidden_dim = int(embed_dim * mlp_ratio)
         self.fc1 = nn.Linear(embed_dim, hidden_dim)
@@ -42,7 +37,7 @@ class MLP(nn.Module):
 
 #Suit l'architecture du transformer/encoder
 class TransformerBlock(nn.Module):
-    def __init__(self, embed_dim=768, n_heads=12, mlp_ratio=4.0, dropout=0.1):
+    def __init__(self, embed_dim, n_heads, mlp_ratio, dropout=0.1):
         super().__init__()
         self.norm1 = nn.LayerNorm(embed_dim)
         self.attn = nn.MultiheadAttention(embed_dim, n_heads, dropout=dropout, batch_first=True)
@@ -78,38 +73,24 @@ class TransformerBlock(nn.Module):
 class ViT(nn.Module):
 
     def __init__(
-        self,
-        img_size=224,
-        patch_size=16,
-        in_channels=3,
-        n_classes=1000,
-        embed_dim=768,
-        depth=12,
-        n_heads=12,
-        mlp_ratio=4.0,
-        dropout=0.1,
-        emb_dropout=0.1
+self,img_size=32,patch_size=4,in_channels=3,n_classes=10,embed_dim=128,depth=6,n_heads=4,mlp_ratio=4.0,dropout=0.1,
     ):
         super().__init__()
 
         # Patch embedding
         self.patch_embed = PatchEmbedding(img_size, patch_size, in_channels, embed_dim)
         n_patches = self.patch_embed.n_patches
-
         # Class token (token spécial pour la classification)
-        #Utile nn.parameter pour préciser qu'ils doivent etre entrainés
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim)) #Utile nn.parameter pour préciser qu'ils doivent etre entrainés
         # Position embedding
         self.pos_embed = nn.Parameter(torch.zeros(1, n_patches + 1, embed_dim))
-
         # Transformer blocks
         self.blocks = nn.ModuleList([
             TransformerBlock(embed_dim, n_heads, mlp_ratio, dropout)
             for _ in range(depth)
         ])
 
-        # Classification head
+        # Classification finale
         self.norm = nn.LayerNorm(embed_dim)
         self.head = nn.Linear(embed_dim, n_classes)
 
@@ -131,8 +112,7 @@ class ViT(nn.Module):
     def forward(self, x):
         B = x.shape[0] #Récupère le nombre d'images
         # Patch embedding
-        x = self.patch_embed(x)  # (B, n_patches, embed_dim)
-
+        x = self.patch_embed(x)  
         # Ajout du class token
         cls_token = self.cls_token.expand(B, -1, -1)  # (B, 1, embed_dim)
         x = torch.cat([cls_token, x], dim=1)  # (B, n_patches+1, embed_dim)
@@ -144,8 +124,9 @@ class ViT(nn.Module):
         for block in self.blocks:
             x = block(x)
 
-        # Classification (utilise uniquement le class token)
+        
         x = self.norm(x)
+        # Classification (on utilise ici uniquement le class token)
         x = x[:, 0]  # Prend le class token
         x = self.head(x)
 

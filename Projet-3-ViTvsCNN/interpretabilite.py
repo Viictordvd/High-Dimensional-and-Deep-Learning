@@ -8,9 +8,9 @@ class ViTInterpreter:
         self.model = model
         self.device = device
         self.attention_maps = []
-
+# Enregistre les attention maps de chaque couche
     def hook_attention(self):
-        """Enregistre les attention maps de chaque couche"""
+        
         self.attention_maps = []
         hooks = []
 
@@ -46,16 +46,14 @@ class ViTInterpreter:
             block.forward = make_new_forward(original_forward, block.attn)
 
         return original_forwards
-
+# Restaure les forward originaux
     def restore_forwards(self, original_forwards):
-        """Restaure les forward originaux"""
+        
         for block, orig_forward in zip(self.model.blocks, original_forwards):
             block.forward = orig_forward
-
+#  Visualise l'attention du modèle
     def visualize_attention(self, image, class_names=None, layer_idx=-1, head_idx=0):
         """
-        Visualise l'attention du modèle
-
         Args:
             image: Image tensor (1, C, H, W) ou (C, H, W)
             class_names: Liste des noms de classes
@@ -85,7 +83,7 @@ class ViTInterpreter:
         if len(self.attention_maps) == 0:
             print(" Aucune attention map capturée. Vérifie l'architecture du modèle.")
             return
-
+        #Récupure l'attention de la couche en question
         attn = self.attention_maps[layer_idx]  # (batch, n_heads, n_patches+1, n_patches+1)
         attn = attn[0, head_idx]  # Sélectionne la tête (n_patches+1, n_patches+1)
 
@@ -139,9 +137,10 @@ class ViTInterpreter:
         plt.show()
 
         return attn_map
-
+        
+# Visualise toutes les têtes d'attention d'une couche
     def visualize_all_heads(self, image, class_names=None, layer_idx=-1):
-        """Visualise toutes les têtes d'attention d'une couche"""
+
         self.model.eval()
 
         if image.dim() == 3:
