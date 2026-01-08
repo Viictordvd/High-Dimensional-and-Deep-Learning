@@ -40,11 +40,114 @@ from tensorflow.keras.applications.resnet50 import preprocess_input
 # ------------------------------- Classification Binaire Chat ou Chien ------------------------------- #
 
 
+### Réseaux ###
+
+# premier CNN simple pour la classification binaire. Les images sont redimensionnées en img_height x img_width pixels pour pouvoir être traitées par le réseau
+# Le réseau est composé de 3 couches de convolution + maxpooling, suivies de 2 couches denses avec dropout (pour éviter le surapprentissage) avant la couche de sortie.
+# La fonction d'activation de la couche de sortie est une sigmoïde pour produire une probabilité entre 0 et 1 (chat ou chien).
+def cnn_simple(nom,img_width, img_height):
+    cnn = Sequential(name=nom)
+    cnn.add(Input(shape=(img_height, img_width,3)))
+    cnn.add(Conv2D(32, (3,3), activation='relu'))
+    cnn.add(MaxPooling2D(pool_size=(2,2)))
+    cnn.add(Conv2D(64, (3,3), activation='relu'))
+    cnn.add(MaxPooling2D(pool_size=(2,2)))
+    cnn.add(Conv2D(96, (3,3), activation='relu'))
+    cnn.add(MaxPooling2D(pool_size=(2,2)))
+    cnn.add(Flatten())              # Convertir la dimension de la sortie des couches convolutionnelles pour la couche dense (vecteur)
+    cnn.add(Dense(64, activation='relu'))                # MLP simple (couche dense). 
+    cnn.add(Dropout(0.5))
+    cnn.add(Dense(1, activation='sigmoid'))               # activation sigmoid pour classification binaire
+    return cnn
+
+# VGG16, on utilise ici un CNN pré-entraîné auquel on rajoute une tête de classification binaire (MLP). 
+# Comme VGG-16 est déjà entraîné, on bloque 'entraînement de ses poids (sauf dans le cas du fine-tuning où on dégèle les couches tardives de VGG-16 pour les ré-entraîner légèrement)
+def VGG16_model_binaire(nom, img_height, img_width, trainable=False):
+    conv_base = VGG16(weights='imagenet', include_top=False, input_shape=(img_height, img_width, 3))
+    if trainable == True:               # Fine-tuning
+        conv_base.trainable = True # On rend la base convolutive entraînable
+        for layer in conv_base.layers[:15]: # On bloque les 15 premières couches (caractéristiques générales)
+            layer.trainable = False
+
+    model = Sequential(name=nom)
+    model.add(Input(shape=(img_height, img_width, 3)))
+    model.add(conv_base)
+    model.add(GlobalAveragePooling2D())             # Transforme la sortie de VGG-16 pour correspondre à l'entrée du MLP. 
+    # Meilleur que flatten car permet de conserver une meilleure représentation de l'info dans un vecteur
+    model.add(Dense(256, activation='relu'))                # MLP simple. 
+    model.add(Dense(1, activation='sigmoid'))               # activation sigmoid pour classification binaire
+    return model
+
+
+### Entrainement pour classif binaire ###
+
+# Focntion d'entraînement. La loss adaptée pour la classification binaire est la binary crossentropy. L'optimiseur utilisé est Adam. La métrique optimisée est l'accuracy du modèle
+def Entrainement_nn_binaire(cnn,epochs,train_generator,validation_generator,lr=3e-4): 
+    print("Entrainement de ",cnn.name)
+    cnn.compile(
+        loss = 'binary_crossentropy',               # Pour classif binaire
+        optimizer = Adam(learning_rate=lr),
+        metrics = ['accuracy'])
+
+    t_learning_cnn = time.time()
+    cnn_history = cnn.fit(
+        train_generator,
+        validation_data = validation_generator,
+        epochs = epochs)
+    
+    t_learning_cnn = time.time() - t_learning_cnn
+    print("Learning time for %d epochs : %d seconds" % (epochs, t_learning_cnn))
+    return t_learning_cnn, cnn_history
+
+
+#### Affichage de l'entrainement ####
+
+def plot_training_analysis(history):
+    acc = history.history['accuracy']
+    val_acc = history.history['val_accuracy']
+    loss = history.history['loss']
+    val_loss = history.history['val_loss']
+
+    epochs = range(len(acc))
+
+    plt.subplot(1,2,1)
+    plt.plot(epochs, acc, 'b', linestyle="--",label='Training accuracy')
+    plt.plot(epochs, val_acc, 'g', label='Validation accuracy')
+    plt.title('Training and validation accuracy')
+    plt.legend()
+
+    plt.subplot(1,2,2)
+    plt.plot(epochs, loss, 'b', linestyle="--",label='Training loss')
+    plt.plot(epochs, val_loss,'g', label='Validation loss')
+    plt.title('Training and validation loss')
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()
+
+# Analyse des résultats : courbes d'apprentissage, permet de vérifier si on a un sur-apprentissage par ex
+def Analyse_resultats_binaire(cnn,cnn_history, train_generator, validation_generator):
+    t_prediction_cnn = time.time()
+    score_cnn_train = cnn.evaluate(train_generator, verbose=1)
+    score_cnn_validation = cnn.evaluate(validation_generator, verbose=1)
+
+    t_prediction_cnn = time.time() - t_prediction_cnn
+
+    print('Train accuracy:', score_cnn_train[1])
+    print('Validation accuracy:', score_cnn_validation[1])
+    print("Time Prediction: %.2f seconds" % t_prediction_cnn)
+
+    plot_training_analysis(cnn_history)
+    return t_prediction_cnn
+
 # ------------------------------- Classification Fine ------------------------------- #
 
-# Réseaux :
+
+### Réseaux ###
 
 # Multi-layer perceptron simple
+# Ce réseau sert de baseline pour la classif fine, on va réduire drastiquement la taille des images à 32x32 pixels pour limiter le nombre de paramètres du réseau à apprendre.
+# Néanmoins, le nombre de paramètres reste élevé (plus de 300k) pour un MLP, on s'attend donc à un surapprentissage rapide.
 def mlp(nom, N_classes=37):
     mlp = Sequential(name=nom)
     mlp.add(Input(shape=(32, 32, 3)))
@@ -56,24 +159,10 @@ def mlp(nom, N_classes=37):
     mlp.add(Dense(N_classes, activation='softmax'))
     return mlp
 
-# Entrainement MLP
-def Entrainement_nn(nn,epochs,train_generator, validation_generator, lr=1e-4):
-    print("Entrainement de ",nn.name)
-    nn.compile(
-        loss = 'sparse_categorical_crossentropy',
-        optimizer = Adam(learning_rate=lr),
-        metrics = ['accuracy'])
-    
-    t_learning_nn = time.time()
-    nn_history = nn.fit(train_generator, 
-                          validation_data = validation_generator, 
-                          epochs = epochs)
-
-    t_learning_nn = time.time() - t_learning_nn
-    print("Learning time for %d epochs : %d seconds" % (epochs, t_learning_nn))
-    return t_learning_nn, nn_history
-
 # CNN simple
+# trrès similaire au cas de la classification binaire à l'exception faite que la sortie du modèle est un vecteur de la taille du nombre de classes (37),
+#  de telle sorte que la i-ème coordonée du vecteur corresponde à la probabilité de l'image d'appartenir à la i-ème classe.
+# La fonction d'activation de la sortie est un softmax pour s'assurer qu'on ait des probabilités en sortie (somme = 1).
 def CNN(nom, img_width, img_height, N_classes=37):
     model = Sequential(name=nom)
     model.add(Input(shape=(img_height, img_width, 3)))
@@ -95,6 +184,7 @@ def CNN(nom, img_width, img_height, N_classes=37):
     return model
 
 # VGG16
+# De même, modèle similaire au cas binaire, à l'exception de la sortie.
 def VGG16_model(nom, img_height, img_width, trainable="block5"):
     conv_base = VGG16(weights='imagenet', include_top=False, input_shape=(img_height, img_width, 3))
     if trainable is not None:
@@ -112,6 +202,8 @@ def VGG16_model(nom, img_height, img_width, trainable="block5"):
 
 
 # ResNet50
+# On utilise ici un autre modèle pré-entraîné : ResNet50. Ce modèle fait partie de la famille des modèles ResNet, il comporte 50 couches. 
+# Il utilise des connections résiduelles.
 def ResNet50_model(nom, img_height, img_width, fine_tune_stage="conv5"):
     conv_base = ResNet50(weights='imagenet', include_top=False, input_shape=(img_height, img_width, 3))
     if fine_tune_stage is not None:
@@ -147,8 +239,26 @@ def MobileNetV2_model(nom, img_height, img_width, fine_tune_from="block_13"):
     return model
 
 
+### Entrainement pour classif fine ###
 
-#### Affichage ####
+def Entrainement_nn_fine(nn,epochs,train_generator, validation_generator, lr=1e-4):
+    print("Entrainement de ",nn.name)
+    nn.compile(
+        loss = 'sparse_categorical_crossentropy',
+        optimizer = Adam(learning_rate=lr),
+        metrics = ['accuracy'])
+    
+    t_learning_nn = time.time()
+    nn_history = nn.fit(train_generator, 
+                          validation_data = validation_generator, 
+                          epochs = epochs)
+
+    t_learning_nn = time.time() - t_learning_nn
+    print("Learning time for %d epochs : %d seconds" % (epochs, t_learning_nn))
+    return t_learning_nn, nn_history
+
+
+#### Affichage de l'entrainement ####
 
 # Courbes apprentissage
 def plot_training_analysis(history):
