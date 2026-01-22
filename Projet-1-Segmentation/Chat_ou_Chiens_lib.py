@@ -220,12 +220,17 @@ def CNN(nom, img_width, img_height, N_classes=37):
 
 # VGG16
 # De même, modèle similaire au cas binaire, à l'exception de la sortie.
-def VGG16_model(nom, img_height, img_width, trainable="block5"):
+def VGG16_model_classif_fine(nom, img_height, img_width, trainable="block5"):
     conv_base = VGG16(weights='imagenet', include_top=False, input_shape=(img_height, img_width, 3))
-    if trainable is not None:
-        for layer in conv_base.layers:      # Si on fait du fine-tuning, on dégèle uniquement les couches du block5 qui correspondent aux plus haut niveau des features (objets sémantiques, etc..)
-            layer.trainable = layer.name.startswith(trainable)
 
+    # Pour le Fine-tuning on gere si les poids sont gelés ou non
+    if trainable == True:         
+        conv_base.trainable = True # On rend la base convolutive entraînable
+        for layer in conv_base.layers[:15]: # On bloque les 15 premières couches (caractéristiques générales)
+            layer.trainable = False
+    else:
+        conv_base.trainable = False
+    
     model = Sequential(name=nom)
     model.add(Input(shape=(img_height, img_width, 3)))
     model.add(conv_base)
@@ -321,6 +326,8 @@ def plot_training_analysis(history):
 
 # Affichage analyse des résultats (Matrice de confusion + courbes apprentissage)
 def Analyse_resultats(nn,nn_history, train_generator, validation_generator):
+    validation_generator.shuffle = False
+    validation_generator.reset()
     t_prediction_nn = time.time()
     score_nn_train = nn.evaluate(train_generator, verbose=1)
     score_nn_validation = nn.evaluate(validation_generator, verbose=1)
@@ -335,9 +342,15 @@ def Analyse_resultats(nn,nn_history, train_generator, validation_generator):
     print('Validation accuracy:', score_nn_validation[1])
     print("Time Prediction: %.2f seconds" % t_prediction_nn)
 
-    cm_norm = confusion_matrix(y_true, y_pred, normalize='false')
+    cm = confusion_matrix(y_true, y_pred)
     plt.figure(figsize=(10,8))
-    sns.heatmap(cm_norm, cmap="Blues")
+    sns.heatmap(
+        cm,
+        annot=True,      # Affiche les nombres
+        fmt="d",         # Format décimal (entier)
+        cmap="Blues", 
+        annot_kws={"size": 8} # Police plus petite pour que ça rentre dans les cases
+    )
 
     plt.xlabel("Predicted")
     plt.ylabel("True")
@@ -345,7 +358,42 @@ def Analyse_resultats(nn,nn_history, train_generator, validation_generator):
     plt.show()
 
     plot_training_analysis(nn_history)
+    validation_generator.shuffle = True
     return t_prediction_nn
+
+def predict_breed_samples(model, df, img_dir, train_generator, img_height, img_width, n_samples=5):
+    samples = df.sample(n_samples)
+    
+    # 2. Récupérer les noms des classes (races) 
+    # Important : Keras trie les classes par ordre alphabétique par défaut
+    class_indices = train_generator.class_indices
+    labels = {v: k for k, v in class_indices.items()} # Inverse le dico : {0: 'Abyssinian', ...}
+
+    plt.figure(figsize=(20, 4))
+    
+    for i, (idx, row) in enumerate(samples.iterrows()):
+        img_path = os.path.join(img_dir, row['Image'])
+        true_breed = row['BREED_NAME']
+        
+        img = load_img(img_path, target_size=(img_height, img_width))
+        img_array = img_to_array(img) / 255.0
+        img_batch = np.expand_dims(img_array, axis=0)
+
+        # Prédiction
+        preds = model.predict(img_batch, verbose=0)
+        pred_idx = np.argmax(preds[0]) # On prend l'indice de la probabilité max
+        pred_breed = labels[pred_idx]
+        confidence = preds[0][pred_idx]
+
+        plt.subplot(1, n_samples, i + 1)
+        plt.imshow(img)
+        color = "green" if pred_breed.lower() == true_breed.lower() else "red"
+        plt.title(f"Réel: {true_breed}\nPred: {pred_breed}\n({confidence:.1%})", 
+                  color=color, fontsize=10)
+        plt.axis("off")
+    
+    plt.tight_layout()
+    plt.show()
 
 # ------------------------------- Segmentation ------------------------------- #
 
@@ -530,3 +578,36 @@ def Analyse_resultats_segmentation(nn,nn_history, train_generator, validation_ge
 
     plot_training_analysis(nn_history)
     return t_prediction_nn
+
+def Visualisation_Prediction_U_Net(model,val_loader,num_examples):
+    fig, axes = plt.subplots(num_examples, 3, figsize=(15, 5*num_examples))
+
+    # Prendre num_examples du validation loader
+    for i in range(num_examples):
+        X_batch, y_batch = val_loader[i]
+        
+        # Prédire les masques
+        y_pred = model.predict(X_batch[:1])  # Prendre la première image du batch
+        
+        # Récupérer les valeurs
+        img = X_batch[0]
+        mask_true = y_batch[0]
+        mask_pred = y_pred[0]
+        
+        # Afficher l'image
+        axes[i, 0].imshow(img)
+        axes[i, 0].set_title(f'Image {i+1}', fontweight='bold')
+        axes[i, 0].axis('off')
+        
+        # Afficher le masque réel
+        axes[i, 1].imshow(mask_true[:,:,0], cmap='gray')
+        axes[i, 1].set_title(f'Masque réel {i+1}', fontweight='bold')
+        axes[i, 1].axis('off')
+        
+        # Afficher le masque prédit
+        axes[i, 2].imshow(mask_pred[:,:,0], cmap='gray')
+        axes[i, 2].set_title(f'Masque prédit {i+1}', fontweight='bold')
+        axes[i, 2].axis('off')
+
+    plt.tight_layout()
+    plt.show()
