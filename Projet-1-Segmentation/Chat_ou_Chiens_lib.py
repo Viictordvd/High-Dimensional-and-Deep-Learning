@@ -64,10 +64,14 @@ def cnn_simple(nom,img_width, img_height):
 # Comme VGG-16 est déjà entraîné, on bloque 'entraînement de ses poids (sauf dans le cas du fine-tuning où on dégèle les couches tardives de VGG-16 pour les ré-entraîner légèrement)
 def VGG16_model_binaire(nom, img_height, img_width, trainable=False):
     conv_base = VGG16(weights='imagenet', include_top=False, input_shape=(img_height, img_width, 3))
-    if trainable == True:               # Fine-tuning
+    
+    # Pour le Fine-tuning on gere si les poids sont gelés ou non
+    if trainable == True:         
         conv_base.trainable = True # On rend la base convolutive entraînable
         for layer in conv_base.layers[:15]: # On bloque les 15 premières couches (caractéristiques générales)
             layer.trainable = False
+    else:
+        conv_base.trainable = False
 
     model = Sequential(name=nom)
     model.add(Input(shape=(img_height, img_width, 3)))
@@ -139,6 +143,37 @@ def Analyse_resultats_binaire(cnn,cnn_history, train_generator, validation_gener
 
     plot_training_analysis(cnn_history)
     return t_prediction_cnn
+
+def predict_animal(model, df, img_dir, index=None):
+    if index is None:
+        index = np.random.randint(0, len(df))
+    
+    img_name = df.iloc[index]['Image']
+    true_label = df.iloc[index]['SPECIES_NAME']
+    img_path = os.path.join(img_dir, img_name)
+
+    # 2. Charger et préparer l'image (doit être identique au target_size du generator)
+    # On utilise target_size=(150, 150) comme défini dans votre code
+    img = load_img(img_path, target_size=(150, 150))
+    img_array = img_to_array(img) / 255.0  # Normalisation 1./255
+    img_batch = np.expand_dims(img_array, axis=0)  # Ajouter la dimension de batch (1, 150, 150, 3)
+
+    prediction = model.predict(img_batch)
+    
+    # Comme class_mode='binary', 0 est  'Cat' et 1 est 'Dog' 
+    if prediction[0][0] > 0.5:
+        res = "Dog"
+        prob = prediction[0][0]
+    else:
+        res = "Cat"
+        prob = 1 - prediction[0][0]
+
+    plt.figure(figsize=(6, 6))
+    plt.imshow(img)
+    color = "green" if res == true_label else "red"
+    plt.title(f"Réel: {true_label}\nPred: {res} ({prob:.2%})", color=color, fontsize=14, fontweight="bold")
+    plt.axis("off")
+    plt.show()
 
 # ------------------------------- Classification Fine ------------------------------- #
 
