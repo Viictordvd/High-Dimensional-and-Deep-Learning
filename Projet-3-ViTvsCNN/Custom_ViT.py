@@ -12,7 +12,6 @@ class PatchEmbedding(nn.Module):
         # On utilise une Conv2d avec kernel_size = stride = patch_size pour découper et projeter linéairement.
         self.proj = nn.Conv2d(in_channels,embed_dim,kernel_size=patch_size,stride=patch_size)
     def forward(self, x):
-        # x: (B, C, H, W)
         x = self.proj(x)  
         x = x.flatten(2)  
         x = x.transpose(1, 2)  
@@ -77,20 +76,18 @@ self,img_size=32,patch_size=4,in_channels=3,n_classes=10,embed_dim=128,depth=6,n
     ):
         super().__init__()
 
-        # Patch embedding
         self.patch_embed = PatchEmbedding(img_size, patch_size, in_channels, embed_dim)
         n_patches = self.patch_embed.n_patches
-        # Class token (token spécial pour la classification)
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim)) #Utile nn.parameter pour préciser qu'ils doivent etre entrainés
-        # Position embedding
+        
         self.pos_embed = nn.Parameter(torch.zeros(1, n_patches + 1, embed_dim))
-        # Transformer blocks
+
         self.blocks = nn.ModuleList([
             TransformerBlock(embed_dim, n_heads, mlp_ratio, dropout)
             for _ in range(depth)
         ])
 
-        # Classification finale
+        
         self.norm = nn.LayerNorm(embed_dim)
         self.head = nn.Linear(embed_dim, n_classes)
 
@@ -111,11 +108,10 @@ self,img_size=32,patch_size=4,in_channels=3,n_classes=10,embed_dim=128,depth=6,n
 
     def forward(self, x):
         B = x.shape[0] #Récupère le nombre d'images
-        # Patch embedding
         x = self.patch_embed(x)  
-        # Ajout du class token
-        cls_token = self.cls_token.expand(B, -1, -1)  # (B, 1, embed_dim)
-        x = torch.cat([cls_token, x], dim=1)  # (B, n_patches+1, embed_dim)
+     
+        cls_token = self.cls_token.expand(B, -1, -1)
+        x = torch.cat([cls_token, x], dim=1) 
 
         # Ajout du position embedding
         x = x + self.pos_embed

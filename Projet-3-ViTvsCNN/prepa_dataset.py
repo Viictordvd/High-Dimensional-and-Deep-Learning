@@ -6,11 +6,11 @@ import random as rd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+
 #Fonction qui permet de charger un dossier d'image en tensors
 def load_folder_to_tensors(directory, transform):
     
     if not os.path.exists(directory):
-        # Si le dossier n'existe pas, on retourne None ou on lève une erreur
         print(f"Attention : Le dossier {directory} est introuvable.")
         return None, None, None
 
@@ -21,13 +21,9 @@ def load_folder_to_tensors(directory, transform):
 
 
 def format_cifar_tensor(x_data):
-    """
-    Convertit les arrays Numpy de CIFAR (N, H, W, C) 
-    en Tenseurs PyTorch (N, C, H, W) normalisés [0-1].
-    """
-    # 1. De Numpy à Tensor
+
     x = torch.tensor(x_data)
-    # 2. Permutation : (Batch, H, W, C) -> (Batch, C, H, W)
+    # Permutation : (Batch, H, W, C) -> (Batch, C, H, W)
     x = x.permute(0, 3, 1, 2)
     #Normalisation
     x = x.float() / 255.0
@@ -60,7 +56,6 @@ def describe_image_dataset(x_train, y_train, x_test, y_test, class_names=None, c
     else:
         raise ValueError("Format d'image non reconnu.")
 
-    # Nombre de classes
     classes = np.unique(y_train)
     N_classes = len(classes)
 
@@ -71,7 +66,6 @@ def describe_image_dataset(x_train, y_train, x_test, y_test, class_names=None, c
     print(f"Number of classes: {N_classes}")
     print("--------------------------------")
 
-    # Distribution histogrammes 
     plt.subplot(1, 2, 2)
     sns.histplot(y_train, stat='proportion', discrete=True, alpha=.8, shrink=.8, label='Train')
     sns.histplot(y_test, stat='proportion', discrete=True, alpha=.5, shrink=.8, label='Test')
@@ -79,13 +73,11 @@ def describe_image_dataset(x_train, y_train, x_test, y_test, class_names=None, c
     plt.legend()
     plt.show()
 
-    # Affichage d'image classe par classe
     fig = plt.figure(figsize=(12, 6))
 
     for i in range(N_classes):
         ax = fig.add_subplot(2, (N_classes + 1) // 2 + 1, i + 1)
 
-        # index aléatoire pour la classe i
         indices = np.where(y_train == i)[0]
         if len(indices) > 0:
             sample_index = rd.choice(indices)
@@ -101,11 +93,9 @@ def describe_image_dataset(x_train, y_train, x_test, y_test, class_names=None, c
             if C == 1 and img.ndim == 3:
                 img = img.squeeze()
 
-            # Normalisation pour affichage (si les valeurs sont hors de [0,1])
-            # imshow aime les float entre [0,1] ou int entre [0,255]
             if img.max() > 1.0 and img.dtype != np.uint8:
                 img = img / 255.0
-            elif img.min() < 0: # Cas où l'image est normalisée (ex: mean/std)
+            elif img.min() < 0: 
                 img = (img - img.min()) / (img.max() - img.min())
 
             ax.imshow(img, cmap=cmap if C == 1 else None)
