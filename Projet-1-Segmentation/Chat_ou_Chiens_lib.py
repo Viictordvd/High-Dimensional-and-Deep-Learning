@@ -35,7 +35,7 @@ from tensorflow.keras.preprocessing.image import load_img, img_to_array,ImageDat
 # Modèles pré-entraînés
 from tensorflow.keras.applications import VGG16, ResNet50, MobileNetV2
 from tensorflow.keras.applications.resnet50 import preprocess_input
-
+import matplotlib.image as mpimg
 
 # ------------------------------- Classification Binaire Chat ou Chien ------------------------------- #
 
@@ -249,6 +249,8 @@ def ResNet50_model(nom, img_height, img_width, fine_tune_stage="conv5"):
     if fine_tune_stage is not None:
         for layer in conv_base.layers:      # Si on fait du fine-tuning, on dégèle uniquement les couches qui correspondent aux plus haut niveau des features (objets sémantiques, etc..)
             layer.trainable = layer.name.startswith(fine_tune_stage)
+    else:
+        conv_base.trainable=False
 
     model = Sequential(name=nom)
     model.add(Input(shape=(img_height, img_width, 3)))
@@ -325,7 +327,7 @@ def plot_training_analysis(history):
     plt.show()
 
 # Affichage analyse des résultats (Matrice de confusion + courbes apprentissage)
-def Analyse_resultats(nn,nn_history, train_generator, validation_generator):
+def Analyse_resultats(nn,nn_history, train_generator, validation_generator,confusion_races=False):
     validation_generator.shuffle = False
     validation_generator.reset()
     t_prediction_nn = time.time()
@@ -348,7 +350,7 @@ def Analyse_resultats(nn,nn_history, train_generator, validation_generator):
 
     confused_pairs = []
     num_classes = len(class_labels)
-
+    
     for i in range(num_classes):
         for j in range(num_classes):
             if i != j:
@@ -381,10 +383,10 @@ def Analyse_resultats(nn,nn_history, train_generator, validation_generator):
 
     plot_training_analysis(nn_history)
     validation_generator.shuffle = True
-
-    print(f"\nTotal des paires de races confondues : {len(df_confusion)}")
-    print("\n 15 confusions les plus fréquentes")
-    print(df_confusion.head(15).to_string(index=False))
+    if confusion_races == True:
+        print(f"\nTotal des paires de races confondues : {len(df_confusion)}")
+        print("\n 15 confusions les plus fréquentes")
+        print(df_confusion.head(15).to_string(index=False))
 
     return t_prediction_nn
 
@@ -485,20 +487,16 @@ class SegmentationDataLoader(Sequence):
             mask_path = os.path.join(self.mask_dir,
                                      row["Image"].replace(".jpg", ".png"))
 
-            # Load image
             img = load_img(img_path, target_size=self.img_size)
             img = img_to_array(img) / 255.0
 
-            # Load mask (trimap)
             mask = load_img(mask_path,
                             target_size=self.img_size,
                             color_mode="grayscale")
             mask = img_to_array(mask).astype(np.int32)
 
-            # Convert 1,2,3 -> 0,1 (binarisation: animal vs fond)
             mask = np.where(mask == 1, 1, 0)
 
-            # Data augmentation synchronisée
             if self.augment:
                 if random.random() < 0.5:
                     img = np.fliplr(img)
@@ -541,7 +539,7 @@ layer_names = [
 ]
 base_model_outputs = [base_model.get_layer(name).output for name in layer_names]
 
-# L'encodeur est pré-entrainé sur ImageNet. Pour l'instant on fixe les poids
+# L'encodeur est pré-entrainé sur ImageNet.
 down_stack = tf.keras.Model(inputs=base_model.input, outputs=base_model_outputs)
 down_stack.trainable = False
 
@@ -569,7 +567,7 @@ def unet_model(output_channels: int = 1):
     # Encoder
     skips = down_stack(inputs)
     x = skips[-1]
-    skips = reversed(skips[:-1])  # on enlève le bottleneck
+    skips = reversed(skips[:-1])
     
     # Decoder avec skip connections
     for up, skip in zip(up_stack, skips):
@@ -683,6 +681,7 @@ def comparaison_races (Unet,img_dir,mask_dir,validation_df_seg,df):
     print(breed_stats.head(10).to_string(index=False))
     print("\n 10 races les moins bien segmentées")
     print(breed_stats.tail(10).to_string(index=False))
+    return df_results
 
 def visualize_specific_breeds(race_list, df, model, img_dir, mask_dir, group_name="Groupe"):
     print(f"\nVisualisation : {group_name}")
